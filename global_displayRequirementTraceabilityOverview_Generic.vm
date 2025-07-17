@@ -1,0 +1,612 @@
+#macro(global_displayRequirementTraceabilityOverview_Generic $p_reqTypes $p_displayOptions) 
+ 
+    ## start timing 
+    #if($printDurations)#global_initStartTime_Wikipage($startTime)#end 
+ 
+    #set($projectId = $page.project) 
+    #set($contextID = $trackerService.getTrackerProject($project).getContextId()) 
+    #set($p_revision = "HEAD") 
+    #set($collectionManager = $trackerService.getBaselineCollectionsManager()) 
+    ## hack to indicate that this macro is called from a wiki page (therefore no $document is available) 
+    #set( $bWikiContext = ($p_displayOptions.contains("contextWiki")) )        
+ 
+    ## Get Collection information based on the location of the Document 
+    ## (input: $document | output: $collectionName $docCollectionId) 
+ 
+    #if(!$bWikiContext)         ## only call macro if the macro is called from the context of a document 
+        #global_queryDocumentCollection($document $collectionName $docCollectionId)              
+    #else 
+        #set($docCollectionId = "") 
+        #set($collectionName = "")          
+    #end 
+ 
+    ##* collectionId is $docCollectionId <br> 
+    ##* collectionName is $collectionName <br> 
+     
+    #if($docCollectionId == "") 
+        ## define the URL path for the work items 
+        ##set($baseLineCollection = $collectionManager.getCollection($projectId,$enumOption)) 
+        #set($projectAndOptionalCollectionUrlPart = $page.project) 
+    #else  
+        ## define the URL path for the work items 
+        #set($projectAndOptionalCollectionUrlPart = "$page.project/collection/$docCollectionId") 
+        ## retrieve all work items contained (in all Documents contained) in the specified Collection (create & initialize map) 
+        #global_retrieveAllWorkitemsInCollectionAsMap($page.project $collectionName $r_allWorkitemsInCollectionWithDoc_map) 
+    #end 
+ 
+    ## define project (default: the current project) 
+    #set($project1 = $trackerService.getTrackerProject($page.project)) 
+    #set($project2 = "$page.project") 
+    #set($project3 = "$page.project") 
+ 
+    ## define flag to indicate the option to display approved work items only 
+    #set( $bDisplayApprovedWorkItemsOnly = ($p_displayOptions.contains("displayApprovedWorkItemsOnly")) ) 
+     
+    ## define queries & headers 
+    #set($query1 = "") 
+##  #set($query2 = "") 
+##  #set($query3 = "") 
+    #set($type1 = "") 
+    #set($type2 = "") 
+    #set($type3 = "") 
+    #set($header1 = "") 
+    #set($header2 = "") 
+    #set($header3 = "") 
+    #if( $p_reqTypes.contains("customerRequirement") ) 
+        ## query based on displaying discarded work items (or not) 
+        #if( $p_displayOptions.contains("displayDiscardedWorkItems1") ) 
+            #set($query1 = "type:customerRequirement") 
+        #else 
+            #if( $bDisplayApprovedWorkItemsOnly ) 
+                #set($query1 = "type:customerRequirement AND status:approved") 
+            #else 
+                #set($query1 = "type:customerRequirement AND status:(draft inReview approved)") 
+            #end 
+        #end 
+        ###if( $p_displayOptions.contains("displayDiscardedLinkedWorkItems") ) 
+        ##  #set($query2 = "type:productRequirement") 
+        ###else 
+        ##  #if( $bDisplayApprovedWorkItemsOnly ) 
+        ##      #set($query2 = "type:productRequirement AND status:approved") 
+        ##  #else 
+        ##      #set($query2 = "type:productRequirement AND status:(draft inReview approved)") 
+        ##  #end 
+        ###end 
+        #set($type1 = "customerRequirement") 
+        #set($type2 = "productRequirement") 
+        #set($header1 = "Customer Requirements") 
+        #if( $p_displayOptions.contains("displayPlatformRequirements") ) 
+            #set($header2 = "Platform Requirements") 
+        #else 
+            #set($header2 = "System Requirements") 
+        #end     
+        #if( $p_reqTypes.contains("componentRequirement") ) 
+##          #if( $p_displayOptions.contains("displayDiscardedLinkedWorkItems") ) 
+##              #set($query3 = "type:componentRequirement") 
+##          #else 
+##              #if( $bDisplayApprovedWorkItemsOnly ) 
+##                  #set($query3 = "type:componentRequirement AND status:approved") 
+##              #else 
+##                  #set($query3 = "type:componentRequirement AND status:(draft inReview approved)") 
+##              #end 
+##          #end 
+            #set($type3 = "componentRequirement") 
+            #set($header3 = "Subsystem Requirements") 
+        #end 
+    #elseif( $p_reqTypes.contains("productRequirement") ) 
+        ## query based on displaying discarded work items (or not) 
+        #if( $p_displayOptions.contains("displayDiscardedWorkItems1") ) 
+            #set($query1 = "type:productRequirement") 
+        #else 
+            #if( $bDisplayApprovedWorkItemsOnly ) 
+                #set($query1 = "type:productRequirement AND status:approved") 
+            #else 
+                #set($query1 = "type:productRequirement AND status:(draft inReview approved)") 
+            #end 
+        #end 
+        #if( $p_displayOptions.contains("displayPlatformRequirements") ) 
+            #set($header1 = "Platform Requirements") 
+        #else 
+            #set($header1 = "System Requirements") 
+        #end  
+        #set($type1 = "productRequirement") 
+        #if( $p_reqTypes.contains("componentRequirement") ) 
+##          #if( $p_displayOptions.contains("displayDiscardedLinkedWorkItems") ) 
+##              #set($query2 = "type:componentRequirement") 
+##          #else 
+##              #if( $bDisplayApprovedWorkItemsOnly ) 
+##                  #set($query2 = "type:componentRequirement AND status:approved") 
+##              #else 
+##                  #set($query2 = "type:componentRequirement AND status:(draft inReview approved)") 
+##              #end 
+##          #end 
+            #set($type2 = "componentRequirement") 
+            #set($header2 = "Subsystem Requirements") 
+        #end 
+    #else 
+        {show:wiki}#info("Please define the requirementType(s) before continuing with the document") 
+        {show} 
+    #end 
+    #set( $linkDirection = "linked" )   ## define link direction between work items 
+ 
+    ## define sorting 
+    #if( $p_displayOptions.contains("sortRequirementsOnID") ) 
+        #set( $sortRows = "id" )            ## sort the requirements (in the matrix) on work item ID 
+        #set( $bSortOnID = true ) 
+    #else 
+        #set( $sortRows = "outlineNumber" ) ## sort the requirements (in the matrix) on outline number (order in which it appears in the document(s) 
+        #set( $bSortOnID = false ) 
+    #end 
+ 
+    #set( $bDisplayDiscardedRequirements1 = ($p_displayOptions.contains("displayDiscardedWorkItems1")) ) 
+    #set( $bDisplayDiscardedLinkedWorkItems = ($p_displayOptions.contains("displayDiscardedLinkedWorkItems")) ) 
+    #if(($p_displayOptions.contains("displayDebugScripting")) && ($document.status.id != "approved")) 
+        {show:wiki}#message("*__Current configuration of the macro__*  <br> - Requirements type is '*$p_reqTypes*' <br> - Showing discarded requirements (first column) is '*$bDisplayDiscardedRequirements1*' <br> - Showing discarded linked requirements is '*$bDisplayDiscardedLinkedWorkItems*' <br> - Showing approved work items only is '*$bDisplayApprovedWorkItemsOnly*' <br> - Sorting of requirements (first columnn) on ID is '*$bSortOnID*' (sorting on '$sortRows')") 
+        {show} 
+    #end 
+ 
+    ## query work item 1, latest revision (HEAD) 
+    #set($WorkItems1 = $project1.queryWorkItems($query1,$sortRows)) 
+ 
+    #if($docCollectionId != "") ## collection specified 
+        ## retain (filter) the work items that are contained in the specified collection (map), latest revision (HEAD) (Req10) 
+        #global_retainWorkitemObjectsInCollectionWithDocAsMap($WorkItems1 "" $r_allWorkitemsInCollectionWithDoc_map $WorkItems1_map)         
+ 
+        #set($WorkItems1 = $WorkItems1_map) 
+    #end 
+ 
+    #if($WorkItems1.size() == 0) 
+        <i> No requirements identified. </i> <br> 
+    #else 
+ 
+        ## display table form 
+        <table width=100% cellspacing="0" cellpadding="1px" style="table-layout:fixed;border:1px solid black;border-collapse:collapse;" rules="all"> 
+ 
+        ## table header 
+        <tr valign="top" bgcolor="#EEEEEE"> 
+            #if( $header3 != "") 
+                <th width=34% style='border-color: black;'> <b> $header1 </b> </th> 
+                <th width=33% style='border-color: black;'> <b> $header2 </b> </th> 
+                <th width=33% style='border-color: black;'> <b> $header3 </b> </th> 
+            #else 
+                <th width=50% style='border-color: black;'> <b> $header1 </b> </th> 
+                <th width=50% style='border-color: black;'> <b> $header2 </b> </th> 
+            #end 
+        </tr> 
+ 
+        #foreach($item1 in $WorkItems1) 
+            ##item1 $item1 <br> 
+            ########  SQL query to retrieve the linked work items 2 ######## 
+            ## 
+            ## Retrieve the database Primary Key for work item (1) (in order to lookup the linked workitems in the next query) 
+            #set($queryWorkItem1_PK = "select distinct WORKITEM.C_URI from WORKITEM where WORKITEM.C_TYPE = '$type1' and WORKITEM.C_ID LIKE '$item1.id'") 
+            ##printQueryResultBulleted($queryWorkItem1_PK)   ## DEBUG printing 
+ 
+            ## Retrieve the linked work items (2) linked to work item (1) (defined in project2) 
+            #if($linkDirection == "backlinked") 
+                ## backlinked relation; i.e. work item 2 is the child of work item 1 
+                #if( $bDisplayApprovedWorkItemsOnly ) 
+                    #set($queryWorkItems2 = "select distinct STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_WORKITEM from STRUCT_WORKITEM_LINKEDWORKITEMS inner join WORKITEM on WORKITEM.C_URI=STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_WORKITEM where WORKITEM.FK_PROJECT IN (select PROJECT.C_PK from PROJECT where PROJECT.C_ID = '$project2') and WORKITEM.C_TYPE = '$type2' and WORKITEM.C_STATUS = 'approved' and STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_P_WORKITEM in ($queryWorkItem1_PK)") 
+                #else 
+                    #if( $bDisplayDiscardedLinkedWorkItems )    ## also display 'out-of-scope' linked work items 
+                        #set($queryWorkItems2 = "select distinct STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_WORKITEM from STRUCT_WORKITEM_LINKEDWORKITEMS inner join WORKITEM on WORKITEM.C_URI=STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_WORKITEM where WORKITEM.FK_PROJECT IN (select PROJECT.C_PK from PROJECT where PROJECT.C_ID = '$project2') and WORKITEM.C_TYPE = '$type2' and STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_P_WORKITEM in ($queryWorkItem1_PK)") 
+                    #else   ## do not display 'out-of-scope' linked work items 
+                        #set($queryWorkItems2 = "select distinct STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_WORKITEM from STRUCT_WORKITEM_LINKEDWORKITEMS inner join WORKITEM on WORKITEM.C_URI=STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_WORKITEM where WORKITEM.FK_PROJECT IN (select PROJECT.C_PK from PROJECT where PROJECT.C_ID = '$project2') and WORKITEM.C_TYPE = '$type2' and NOT WORKITEM.C_STATUS IN ('outOfScope','rejected') and STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_P_WORKITEM in ($queryWorkItem1_PK)") 
+                    #end 
+                #end 
+            #else 
+                ## (forward) linked relation; i.e. work item 2 is the parent of work item 1 
+                #if( $bDisplayApprovedWorkItemsOnly ) 
+                    #set($queryWorkItems2 = "select distinct STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_P_WORKITEM from STRUCT_WORKITEM_LINKEDWORKITEMS inner join WORKITEM on WORKITEM.C_URI=STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_P_WORKITEM where WORKITEM.FK_PROJECT IN (select PROJECT.C_PK from PROJECT where PROJECT.C_ID = '$project2') and WORKITEM.C_TYPE = '$type2' and WORKITEM.C_STATUS = 'approved' and STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_WORKITEM in ($queryWorkItem1_PK)") 
+                #else 
+                    #if( $bDisplayDiscardedLinkedWorkItems )    ## also display 'out-of-scope' linked work items 
+                        #set($queryWorkItems2 = "select distinct STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_P_WORKITEM from STRUCT_WORKITEM_LINKEDWORKITEMS inner join WORKITEM on WORKITEM.C_URI=STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_P_WORKITEM where WORKITEM.FK_PROJECT IN (select PROJECT.C_PK from PROJECT where PROJECT.C_ID = '$project2') and WORKITEM.C_TYPE = '$type2' and STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_WORKITEM in ($queryWorkItem1_PK)") 
+                    #else   ## do not display 'out-of-scope' linked work items 
+                        #set($queryWorkItems2 = "select distinct STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_P_WORKITEM from STRUCT_WORKITEM_LINKEDWORKITEMS inner join WORKITEM on WORKITEM.C_URI=STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_P_WORKITEM where WORKITEM.FK_PROJECT IN (select PROJECT.C_PK from PROJECT where PROJECT.C_ID = '$project2') and WORKITEM.C_TYPE = '$type2' and NOT WORKITEM.C_STATUS IN ('outOfScope','rejected') and STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_WORKITEM in ($queryWorkItem1_PK)") 
+                    #end 
+                #end 
+            #end 
+            ##printQueryResultBulleted($queryWorkItems2)   ## DEBUG printing 
+            ## 
+            ## Run the query to get WorkItems2, latest revision (HEAD) 
+##          Query to execute $queryWorkItems2 <br> 
+            #set($WorkItems2 = $trackerService.getDataService().sqlSearch($queryWorkItems2)) 
+ 
+            #if($docCollectionId != "") ## collection specified 
+                ## retain (filter) the work items that are contained in the specified collection (map), latest revision (HEAD) (Req10) 
+                #global_retainWorkitemObjectsInCollectionWithDocAsMap($WorkItems2 $item1 $r_allWorkitemsInCollectionWithDoc_map $WorkItems2_map) 
+                #set($WorkItems2 = $WorkItems2_map) 
+            #end ## end #if($docCollectionId != "") 
+ 
+            ## sorting of the second work item set 
+            #global_sortWorkitemList_General($WorkItems2 $WorkItems2)            
+             
+            #set($nofWorkItems2 = $WorkItems2.size()) 
+            <tr valign="top"> 
+                ## display work item 1 
+                #if($nofWorkItems2 == 0) 
+                    ## display work item 1 (no rowspan) 
+                    <td valign="top" style='border-color: black;'> 
+##                  {workitem: $item1.projectId/$item1.id | display=long} 
+##                  $transaction.workItems().getBy().oldApiObject($item1).render().withLinks().withTitle() 
+##"$main?item=$releaseWI.getReference().id()" 
+                    #set($ver=$item1.getValue("version")) 
+                    #if(!$ver) 
+                        #set($ver="") 
+                    #end 
+                    <a target="_blank" href="/polarion/#/project/$projectAndOptionalCollectionUrlPart/workitem?id=$item1.getId()">$transaction.workItems().getBy().oldApiObject($item1).render().withLinks(false) , $ver - $item1.title</a><br> 
+ 
+                    ## display empty column for work item 2 
+                    <td style='border-color: black;'></td> 
+ 
+                    #if( $header3 != "") 
+                        ## display empty column for work item 3 
+                        <td style='border-color: black;'></td> 
+                    #end 
+ 
+                #else 
+                    ## display work item 1 (rowspan of number of workitems 2) 
+                    <td rowspan="$nofWorkItems2" valign="top" style='border-color: black;'> 
+##                  {workitem: $item1.projectId/$item1.id | display=long} 
+##                  $transaction.workItems().getBy().oldApiObject($item1).render().withLinks().withTitle() 
+                    #set($ver=$item1.getValue("version"))   ## get the value of the custom field 'Version' (of the work item) 
+                    #if(!$ver) 
+                        #set($ver="") 
+                    #end 
+                    <a target="_blank" href="/polarion/#/project/$projectAndOptionalCollectionUrlPart/workitem?id=$item1.getId">$transaction.workItems().getBy().oldApiObject($item1).render().withLinks(false), $ver - $item1.title</a><br> </td> 
+ 
+                    #foreach($item2 in $WorkItems2) 
+ 
+                        ##item2 $item2 <br> 
+                        #if( $header3 != "") 
+                            ########  SQL query to retrieve the linked work items 3 ######## 
+                            ## 
+                            ## Retrieve the database Primary Key for work item (2) (in order to lookup the linked workitems in the next query) 
+                            #set($queryWorkItem2_PK = "select distinct WORKITEM.C_URI from WORKITEM where WORKITEM.C_TYPE = '$type2' and WORKITEM.C_ID LIKE '$item2.id'") 
+                            ##printQueryResultBulleted($queryWorkItem2_PK)   ## DEBUG printing 
+ 
+                            ## Retrieve the linked work items (3) linked to work item (2) (defined in project3) 
+                            #if($linkDirection == "backlinked") 
+                                ## backlinked relation; i.e. work item 3 is the child of work item 2 
+                                #if( $bDisplayApprovedWorkItemsOnly ) 
+                                    #set($queryWorkItems3 = "select distinct STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_WORKITEM from STRUCT_WORKITEM_LINKEDWORKITEMS inner join WORKITEM on WORKITEM.C_URI=STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_WORKITEM where WORKITEM.FK_PROJECT IN (select PROJECT.C_PK from PROJECT where PROJECT.C_ID = '$project3') and WORKITEM.C_TYPE = '$type3' and WORKITEM.C_STATUS = 'approved' and STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_P_WORKITEM in ($queryWorkItem2_PK)") 
+                                #else 
+                                    #if( $bDisplayDiscardedLinkedWorkItems )    ## also display 'out-of-scope' linked work items 
+                                        #set($queryWorkItems3 = "select distinct STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_WORKITEM from STRUCT_WORKITEM_LINKEDWORKITEMS inner join WORKITEM on WORKITEM.C_URI=STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_WORKITEM where WORKITEM.FK_PROJECT IN (select PROJECT.C_PK from PROJECT where PROJECT.C_ID = '$project3') and WORKITEM.C_TYPE = '$type3' and STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_P_WORKITEM in ($queryWorkItem2_PK)") 
+                                    #else   ## do not display 'out-of-scope' linked work items 
+                                        #set($queryWorkItems3 = "select distinct STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_WORKITEM from STRUCT_WORKITEM_LINKEDWORKITEMS inner join WORKITEM on WORKITEM.C_URI=STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_WORKITEM where WORKITEM.FK_PROJECT IN (select PROJECT.C_PK from PROJECT where PROJECT.C_ID = '$project3') and WORKITEM.C_TYPE = '$type3' and NOT WORKITEM.C_STATUS IN ('outOfScope','rejected') and STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_P_WORKITEM in ($queryWorkItem2_PK)") 
+                                    #end 
+                                #end 
+                            #else 
+                                ## (forward) linked relation; i.e. work item 3 is the parent of work item 2 
+                                #if( $bDisplayApprovedWorkItemsOnly ) 
+                                    #set($queryWorkItems3 = "select distinct STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_P_WORKITEM from STRUCT_WORKITEM_LINKEDWORKITEMS inner join WORKITEM on WORKITEM.C_URI=STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_P_WORKITEM where WORKITEM.FK_PROJECT IN (select PROJECT.C_PK from PROJECT where PROJECT.C_ID = '$project3') and WORKITEM.C_TYPE = '$type3' and WORKITEM.C_STATUS = 'approved' and STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_WORKITEM in ($queryWorkItem2_PK)") 
+                                #else 
+                                    #if( $bDisplayDiscardedLinkedWorkItems )    ## also display 'out-of-scope' linked work items 
+                                        #set($queryWorkItems3 = "select distinct STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_P_WORKITEM from STRUCT_WORKITEM_LINKEDWORKITEMS inner join WORKITEM on WORKITEM.C_URI=STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_P_WORKITEM where WORKITEM.FK_PROJECT IN (select PROJECT.C_PK from PROJECT where PROJECT.C_ID = '$project3') and WORKITEM.C_TYPE = '$type3' and STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_WORKITEM in ($queryWorkItem2_PK)") 
+                                    #else   ## do not display 'out-of-scope' linked work items 
+                                        #set($queryWorkItems3 = "select distinct STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_P_WORKITEM from STRUCT_WORKITEM_LINKEDWORKITEMS inner join WORKITEM on WORKITEM.C_URI=STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_P_WORKITEM where WORKITEM.FK_PROJECT IN (select PROJECT.C_PK from PROJECT where PROJECT.C_ID = '$project3') and WORKITEM.C_TYPE = '$type3' and NOT WORKITEM.C_STATUS IN ('outOfScope','rejected') and STRUCT_WORKITEM_LINKEDWORKITEMS.FK_URI_WORKITEM in ($queryWorkItem2_PK)") 
+                                    #end 
+                                #end 
+                            #end 
+                            ##printQueryResultBulleted($queryWorkItems3)   ## DEBUG printing 
+                            ## 
+                            ## Run the query for WorkItems3, latest revision (HEAD) 
+                            #set($WorkItems3 = $trackerService.getDataService().sqlSearch($queryWorkItems3)) 
+ 
+                            #if($docCollectionId != "") ## collection specified 
+                                ## retain (filter) the work items that are contained in the specified collection (map), latest revision (HEAD) (Req10) 
+                                #global_retainWorkitemObjectsInCollectionWithDocAsMap($WorkItems3 $item2 $r_allWorkitemsInCollectionWithDoc_map $WorkItems3_map) 
+ 
+                                #set($WorkItems3 = $WorkItems3_map) 
+                            #end 
+                            #set($nofWorkItems3 = $WorkItems3.size()) 
+                            #if($nofWorkItems3 == 0) 
+                                #set($nofWorkItems3 = 1) 
+                            #end 
+                        #else 
+                            #set($nofWorkItems3 = 1)    ## init number of work items 3 
+                        #end    ## endif header 3 defined (i.e. column 3 defined) 
+ 
+                        <td valign="top" style='border-color: black;'>  ## display work item 2 
+                            #set($ver = $item2.getValue("version")) ## get the value of the custom field 'Version' (of the work item) 
+                            #if(!$ver) 
+                                #set($ver = "") 
+                            #end                         
+##                          {workitem: $item2.projectId/$item2.id | display=long} 
+##                          $transaction.workItems().getBy().oldApiObject($item2).render().withLinks().withTitle() 
+                            <a target="_blank" href="/polarion/#/project/$projectAndOptionalCollectionUrlPart/workitem?id=$item2.id">$transaction.workItems().getBy().oldApiObject($item2).render().withLinks(false), $ver - $item2.title</a><br> 
+                        </td> 
+ 
+                        #if( $header3 != "") 
+                            <td valign="top" style='border-color: black;'>  ## display work item(s) 3 
+                                #foreach($item3 in $WorkItems3) 
+                                    #set($ver = $item3.getValue("version")) ## get the value of the custom field 'Version' (of the work item) 
+                                    #if(!$ver) 
+                                        #set($ver = "") 
+                                    #end 
+##                                  {workitem: $item3.projectId/$item3.id | display=long} \\ 
+##                                  $transaction.workItems().getBy().oldApiObject($item3).render().withLinks().withTitle() 
+                                    <a target="_blank" href="/polarion/#/project/$projectAndOptionalCollectionUrlPart/workitem?id=$item3.id">$transaction.workItems().getBy().oldApiObject($item3).render().withLinks(false), $ver - $item3.title</a><br> 
+                                #end 
+                            </td> 
+                            </tr> 
+                        #else 
+                            </tr> 
+                        #end 
+ 
+                    #end    ## endfor work item 2 
+                #end    ## endif no work items 2 
+ 
+        #end    ## endfor each work item 1 
+ 
+        </table> 
+    #end    ## endif workitems1 size 
+ 
+    ## stop & report timing 
+    #if($printDurations)#global_printReportGenerationTime_Wikipage($startTime)#end 
+ 
+#end 
+
+####### 1st Nested macro
+#macro(global_initStartTime_Wikipage $r_startTime ) 
+  #set($r_startTime = $calendarTool.getCalendarInstance().getTimeInMillis())  
+#end ## macro 
+
+###### 2nd Nested Macro
+###########################################################################################     
+## Query to get the name of the collection the Document is contained in (GENERIC) 
+##  
+## INPUT:  documentObject:      document object 
+## OUTPUT: myCollectionName:    name of the Collection in which the document is contained 
+## OUTPUT: myCollectionId:      ID of the Collection in which the document is contained 
+#macro(global_queryDocumentCollection $documentObject $myCollectionName $myCollectionId) 
+    #set($myCollectionName = "") 
+    #set($myCollectionId = "") 
+    ##1 Collection 
+    ## search for collections only in the project of the $documentObject 
+    #set($projectID = false) ## init 
+    #set($projectID = $documentObject.projectId) ## try to obtain projectId of module (will only succeed when a module is passed as parameter) 
+    #if($projectID) ## only continue with querying for collection information, when the projectID can be determined. If no projectID could be determined, this parameter remains false. 
+        #set($myCollections = $trackerService.getDataService().searchInstances("BaselineCollection",$projectID,"id")) 
+    ##  * WLS myCollections.size $myCollections.size 
+    ##  * documentObject $documentObject 
+        ##Available collections: $myCollections<br> 
+        #foreach($col in $myCollections) 
+    ##        * $col.getName() 
+            #set($colElements = $col.getElements()) ## get Module objects from the Collection 
+            #foreach($element in $colElements) 
+    ##          **  element $element.getObjectWithRevision() 
+                #if( ($element.getObjectWithRevision() == $documentObject) ) ## check whether the BaselineCollectionElement contains the same revision of the $documentObject (Note: using $element.hasObject($documentObject) does not work, as that call does not check for the correct revision of the document) 
+    ##              *** $element -> IsContained? $element.hasObject($documentObject) 
+                    #set($isContained = ($element.getObjectWithRevision() == $documentObject)) 
+    ##              *** $element -> IsContained? $isContained 
+                    #set($myCollectionName = $col.getName()) 
+                    #set($myCollectionId = $col.getId()) 
+    ##              **** <b> $myCollectionId $myCollectionName </b> 
+                #end 
+            #end 
+        #end 
+    #end 
+#end ## macro 
+
+###### 3rd nested macro
+#macro(global_retrieveAllWorkitemsInCollectionAsMap $p_projectIds $p_collectionName $r_allWorkitemsInCollectionWithDoc_map) 
+    #local_retrieveAllWorkitemObjectsInCollectionAsMaps ($p_projectIds $p_collectionName $r_allWorkitemsInCollection_map_not_used_here $r_allWorkitemsInCollectionWithDoc_map) 
+#end 
+
+###### nested macro of 3rd nested macro
+###########################################################################################  
+## Retrieve all work items contained (in all Documents contained) in the specified Collection (create & initialize map) 
+##  
+## INPUT:  
+## - $p_projectIds:                             one or more projectIds (separated by spaces) 
+## - $p_collectionName:                         collection name 
+## OUTPUT:  
+## - $r_allWorkitemsInCollection_map:           map containing all work items in all Documents (in specified collection) 
+##                                              1)  Key: The ID of the workitem 
+##                                              2)  Value: The workitem object 
+## - $r_allWorkitemsPerDocInCollection_map:     map containing all work items per Document (in specified collection) 
+##                                              1)  Key: Document object 
+##                                              2)  Value: Another map with all the contained workitems with the following format:  
+##                                                  a.  Key: The ID of the workitem 
+##                                                  b.  Value: The workitem object 
+#macro(local_retrieveAllWorkitemObjectsInCollectionAsMaps $p_projectIds $p_collectionName $r_allWorkitemsInCollection_map $r_allWorkitemsPerDocInCollection_map) 
+    #set($r_allWorkitemsInCollection_map = $objectFactory.newMap() ) 
+    #set($r_allWorkitemsPerDocInCollection_map = $objectFactory.newMap() ) 
+    #set($myCollections = $trackerService.getDataService().searchInstances("BaselineCollection","project.id:($p_projectIds)","id")) 
+    #foreach($col in $myCollections) 
+        #if($col.name == $p_collectionName) 
+##              * Collection: $transaction.baselineCollections().getBy().oldApiObject($col).render().withLinks() 
+            #set($elements = $col.getElements()) 
+            #foreach($ele in $elements) 
+                #set($r_allWorkitemsInDocAsmap = $objectFactory.newMap() ) 
+                #set($doc = $ele.getObjectWithRevision()) 
+##                  ** Document: $transaction.documents().getBy().oldApiObject($doc).render().withLinks() 
+                #foreach($wi in $doc.getAllWorkItems()) 
+                    ## workaround for checking whether a workitem really exists, and that it is not unresolvable (in case of a referenced workitem in a document) when the workitem is either deleted or in a project where the user does not have access to. 
+                    #set($status = "") 
+                    #set($unresolvable = "unresolvable") 
+                    #set($status = "$unresolvable$transaction.workItems().getBy().oldApiObject($wi).fields().status.render()")  ## add the text 'unresolvable' before calling render() on the transaction, to make the result of type String 
+                    ##if($status == "unresolvable") 
+                        ##if(($document.status.id == "draft") || ($document.status.id == "inReview")) ## only show in case document status is 'Draft' or 'In Review' 
+                        ##  {show:wiki}  
+                        ##  <font style="color:blue;"> *Note*: WorkItem with ID <b>$wi.id</b> is being referenced in document <b>$transaction.documents().getBy().oldApiObject($doc).render().withLinks()</b>, but cannot be found.<br>This can be caused by:<br>- the workitem is deleted, <i>or</i><br>- the workitem is in a project where user with user ID '$projectService.getCurrentUser().getId()' does not have permissions for<br><i>This note is not displayed when the document is in Approved state.</i> </font> {show} 
+                        ###end 
+                    ##elseif($wi.getType().getId()!="heading") 
+                    #if( ($status != "unresolvable") && ($wi.getType().getId()!="heading") ) 
+                        #set($void = $r_allWorkitemsInDocAsmap.put($wi.id, $wi)) ## always put work item in map per document, as a LiveDoc can only contain 1 revision of a work item (enforced by Polarion itself); no need to perform check before adding it to the map 
+                        #set($revisionNext = "HEAD") ## init 
+                        #set($revisionNext = $wi.revision) 
+                        #set($versionNext = $transaction.workItems().getBy().oldApiObject($wi).fields.version.get()) 
+##                      *** WorkItem: $transaction.workItems().getBy().oldApiObject($wi).render().withLinks() ($revision) 
+                        #if($r_allWorkitemsInCollection_map.keySet().contains($wi.id)) ## workitem already found in the map, check for revision to add the latest revision 
+                            #set($revisionCurrent = "HEAD") ## init 
+                            #set($revisionCurrent = $r_allWorkitemsInCollection_map.get($wi.id).revision) 
+                            #set($versionCurrent = $transaction.workItems().getBy().oldApiObject($r_allWorkitemsInCollection_map.get($wi.id)).fields.version.get()) 
+                            ## check whether the revisions differ. If they are the same revision, the collection contains multiple references to the same work item in the same revision, which is fine. If they are defferent, the latest revision is used, but this needs to be fixed, therefore the error message. 
+                            #if($versionNext != $versionCurrent) 
+                                #if($revisionFirst != "HEAD" && false) ## if HEAD is not yet in the map, check whether the second reference has a higher revision than the one currently in the map 
+                                    #if($revisionNext == "HEAD") 
+                                        #set($void = $r_allWorkitemsInCollection_map.put($wi.id, $wi)) 
+    ##                                      *** WorkItem: $wi.id ($revisionNext) put in Map instead of $wi.id ($revisionCurrent) 
+                                    #elseif($numberTool.integer($revisionNext) > $numberTool.integer($revisionCurrent)) 
+                                        #set($void = $r_allWorkitemsInCollection_map.put($wi.id, $wi)) 
+    ##                                      *** WorkItem: $wi.id ($revisionNext) put in Map instead of $wi.id ($revisionCurrent) 
+                                    #end 
+                                #else 
+                                    ## do nothing, as the higher revision is already in the map 
+                                #end 
+                                #error("WorkItem with ID <b>$wi.id</b> is referenced multiple times (with different versions: $revisionCurrent ($versionCurrent) and $revisionNext ($versionNext)) in the collection '<b>$p_collectionName</b>'. Please make sure only one version is contained in the collection. Having multiple versions of a workitem in a single collection results in unpredictable results in generated content (like is used in the Risk Analysis, GSPR checklist, etc.).") 
+                            #end 
+                        #else ## workitem not yet found, so add it to the map 
+                            #set($void = $r_allWorkitemsInCollection_map.put($wi.id, $wi)) 
+##                              *** WorkItem: $wi.id ($revisionNext) put in Map 
+                        #end ## end if check whether the workitem should be retained 
+                    #end ## end if not heading 
+                #end ## end foreach workitem in $doc.getAllWorkItems() 
+                ## add the collected work items per document in the map that will contain the work items per document 
+                #set($void = $r_allWorkitemsPerDocInCollection_map.put($doc, $r_allWorkitemsInDocAsmap)) 
+            #end ## end foreach element 
+        #end ## end if check for collection name 
+    #end ## end foreach collection 
+##      * resulting map: $r_allWorkitemsInCollection_map 
+#end
+
+###### 4th nested macro
+#macro(global_retainWorkitemObjectsInCollectionWithDocAsMap $p_workitems $parentid $r_allWorkitemsInCollectionWithDoc_map $filteredWorkItems) 
+    #set($debug = false) ## init 
+ 
+    #set($filteredWorkItems = $objectFactory.newSet()) ## create a set, as adding items to a set makes sure there are no duplicates 
+    #set($linkedWorkItemsAtRev = []) 
+    #set($entrySet = $r_allWorkitemsInCollectionWithDoc_map.entrySet()) 
+## Iterate Collection With Doc map get corresponding map and then check for the valid $p_workitems in the map    
+ 
+    #foreach($entry in $entrySet) 
+        #set($r_allWorkitemsInDocsAsmap = $entry.getValue()) 
+##** Map : $r_allWorkitemsInDocsAsmap <br> 
+        #foreach($wi in $p_workitems) 
+            #if($r_allWorkitemsInDocsAsmap.keySet().contains($wi.id)) 
+##              #set($void = $r_retainedWorkitemObjectsMap.put($wi.id, $r_allWorkitemsInDocsAsmap.get($wi.id))) 
+                #set($void = $filteredWorkItems.add($r_allWorkitemsInDocsAsmap.get($wi.id))) 
+            #end 
+        #end 
+    #end 
+     
+    #if ($debug) 
+##      Parent is $parentid.id <br> 
+     ** Filtered workitems : $filteredWorkItems <br> 
+     #end 
+ 
+    #if($parentid.id !="") 
+##      Parent is $parentid.id <br> 
+        #set($p_revision = "HEAD") 
+        #set($p_revision = $parentid.getRevision()) 
+##      REVSION IS $p_revision <br> 
+        #if($p_revision.toString() !="HEAD") 
+         
+##          #set($iRev = $dataService.getRevision($contextID,$p_revision)) 
+##          #set($itrackerRev=$trackerService.getTrackerRevision($iRev)) 
+            #set($uri=$parentid.getUri()) 
+            #set($historyWI=$trackerService.getDataService().getVersionedInstance($uri,$p_revision)) 
+            #set($filteredLinkedWorkItems = []) 
+##          historyWI $historyWI<br> 
+ 
+            #if(!($historyWI.isUnresolvable())) 
+                #set($linkedWorkItemsAtRev = $historyWI.getLinkedWorkItems()) 
+                #if($debug == true)  
+                    linkedWorkItemsAtRev are $linkedWorkItemsAtRev <br>  
+                    Size is :  $linkedWorkItemsAtRev.size() <br> 
+                #end 
+                 
+                #if($linkedWorkItemsAtRev.size() > 0 && $filteredWorkItems.size() > 0)  
+ 
+                    #foreach($wi in $linkedWorkItemsAtRev) 
+ 
+                        ##if(($wi.getType()) && ($wi.getType().getId != "heading")) 
+                        #if((!$wi.isUnresolvable()) && ($wi.getType()) && ($wi.getType().getId != "heading"))   ## WI is not unresolvable (so available) and is not a heading type 
+                            #if($debug == true)  
+                                Adding $wi to the map<br> 
+                            #end 
+                            #set($void = $filteredLinkedWorkItems.add($wi)) 
+                        #end 
+ 
+                    #end 
+ 
+                #end     
+ 
+                #foreach($filterWI in $filteredLinkedWorkItems) 
+                 
+                    #if(! $filteredWorkItems.contains($filterWI)) 
+                         
+                        #set($void = $filteredLinkedWorkItems.remove($filterWI)) 
+                        #if($debug == true)  
+                            Removing $filterWI<br> 
+                        #end 
+                     
+                    #end 
+                #end 
+                 
+            #end                 
+        #end     
+    #end 
+ 
+#end 
+
+##### 5th nested macro
+#macro(global_sortWorkitemList_General $p_unsortedList $r_sortedList) 
+    ## create temp Map to store the workitems and have them retrievable via the ID 
+    #set($itemMap = $objectFactory.newMap()) 
+    #foreach($listItem in $p_unsortedList) 
+        #set($void = $itemMap.put($listItem.id, $listItem))      
+    #end 
+    ## sort the keys 
+    #global_sortKeys_General($itemMap.keySet() $sortedKeys) 
+    ## fill the List with sorted workitems 
+    #set($r_sortedList = []) 
+    #foreach($key in $sortedKeys) 
+        #set($void = $r_sortedList.add($itemMap.get($key))) 
+    #end 
+#end ## macro 
+
+###### nested macro of 5th nested macro
+#macro(global_sortKeys_General $p_unsortedKeys $r_sortedKeys) 
+    ## check if the list contains any items 
+    #if($p_unsortedKeys.size == 0) 
+        ## No keys to sort, so return the empty list 
+        #set($r_sortedKeys = []) 
+         
+    ## check whether the type of items in de list to sort contains work item IDs (it should contain a '-'). If the first item contains a dash, it is assumed the others also have a dash. 
+    #elseif($p_unsortedKeys.get(0).indexOf('-') == -1) 
+        #warning("The macro-call global_sortKeys_General is used to sort non-workitem-IDs, such as '$p_unsortedKeys.get(0)'. It can only sort workitem-IDs (which all contain a dash '-').") 
+    #else 
+        #set($alphabeticallySorted = $sortTool.sort($p_unsortedKeys)) 
+ 
+        #set( $projectIdMap = $objectFactory.newMap() ) 
+        ## for each key, lookup the project ID, and create a map for each project with the keys in it. 
+        #foreach($key in $alphabeticallySorted) 
+            #set($projectIdOfKey = $key.substring(0,$key.indexOf('-'))) 
+            #if($projectIdMap.containsKey($projectIdOfKey)) 
+                #set($keyMap = $projectIdMap.get($projectIdOfKey)) 
+            #else 
+                #set($keyMap = $objectFactory.newMap()) 
+            #end 
+            #set($void = $keyMap.put($mathTool.toInteger($key.substring($mathTool.add($key.indexOf('-'),1),$key.length)), $key)) 
+            #set($void = $projectIdMap.put($projectIdOfKey, $keyMap)) 
+        #end 
+ 
+        #set($r_sortedKeys = []) 
+        #foreach($projectIdKey in $sortTool.sort($projectIdMap.keySet())) 
+            #set($keyMap = $projectIdMap.get($projectIdKey)) 
+            #foreach($key in $sortTool.sort($keyMap.keySet())) 
+                #set($void = $r_sortedKeys.add($keyMap.get($key))) 
+            #end 
+        #end 
+    #end 
+#end ## macro 
+
+##### 6th nested macro
+#macro(global_printReportGenerationTime_Wikipage $p_startTime ) 
+  ~~Report generation took: $mathTool.sub($calendarTool.getCalendarInstance().getTimeInMillis(), $p_startTime) ms~~ 
+  #set($p_startTime = $calendarTool.getCalendarInstance().getTimeInMillis()) 
+#end ## macro
